@@ -15,9 +15,9 @@ app.use(helmet());
 app.use(cors());
 app.use(express.json());
 
-app.get('/', (req, res) => {
+app.get('/', (_, res) => {
   res.json({
-    message: '🦄🌈✨👋🌎🌍🌏✨🌈🦄',
+    message: 'Welcome! please see the documents...',
   });
 });
 

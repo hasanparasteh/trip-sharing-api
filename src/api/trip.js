@@ -3,101 +3,88 @@ const {
   body,
   validationResult,
 } = require('express-validator');
-const middlewares = require('../middlewares');
-const database = require('../database');
-
-const validStatusList = ['STARTED', 'FINISHED', 'INIT'];
-
-require('dotenv')
-  .config();
+const { authCheck } = require('../middlewares');
+const {
+  getAllTrips,
+  addFamilyToTrip,
+  removeFamilyFromTrip,
+  TripStatuses,
+  updateTripStatus,
+  isFamiliesExists,
+  createTrip,
+} = require('../controllers/trips');
 
 const router = express.Router();
 
 // Get All Trips
-router.get('/trips', middlewares.authCheck, async (req, res) => {
-  const trips = await database.query('select * from trip where creator=?', [req.user.id]);
+router.get(
+  '/',
+  authCheck,
+  async (req, res) => {
+    const trips = await getAllTrips(req.user.id);
 
-  // eslint-disable-next-line no-restricted-syntax
-  for await (const trip of trips) {
-    const families_in_trip = await database.query('select familyId from families_in_trip where tripId=?', [trip.id]);
-    trip.families = families_in_trip.map((family) => family.familyId);
-  }
-
-  return res.status(200)
-    .json({
-      result: true,
-      trips,
-    });
-});
+    return res.status(200)
+      .json({
+        result: true,
+        trips,
+      });
+  },
+);
 
 // Add Family INTO trip
-router.post('/trips/:tripId/add/:familyId', middlewares.authCheck, async (req, res) => {
-  try {
-    await database.query('insert into families_in_trip (tripId, familyId, owner) VALUES (?, ?, ?)', [req.params.tripId, req.params.familyId, req.user.id]);
+router.post(
+  '/:tripId/add/:familyId',
+  authCheck,
+  async (req, res) => {
+    const result = await addFamilyToTrip(req.user.id, req.params.tripId, req.params.familyId);
 
     return res.status(200)
       .json({
-        result: true,
-        message: `family ${req.params.familyId} added into ${req.params.tripId}`,
+        result,
       });
-  } catch (error) {
-    return res.status(500)
-      .json({
-        result: false,
-        error,
-      });
-  }
-});
+  },
+);
 
 // Remove Family FROM trip
-router.delete('/trips/:tripId/remove/:familyId', middlewares.authCheck, async (req, res) => {
-  try {
-    await database.query('delete from families_in_trip where tripId=? AND familyId=? AND owner=?', [req.params.tripId, req.params.familyId, req.user.id]);
+router.delete(
+  '/:tripId/remove/:familyId',
+  authCheck,
+  async (req, res) => {
+    const result = await removeFamilyFromTrip(req.user.id, req.params.tripId, req.params.familyId);
 
     return res.status(200)
       .json({
-        result: true,
-        message: `family ${req.params.familyId} removed from ${req.params.tripId}`,
+        result,
       });
-  } catch (error) {
-    return res.status(500)
-      .json({
-        result: false,
-        error,
-      });
-  }
-});
+  },
+);
 
 // Update Trip Status
-router.put('/trips/:tripId/status/:status', middlewares.authCheck, async (req, res) => {
-  if (!req.params.status.includes(validStatusList)) {
-    return res.status(400)
-      .json({
-        result: false,
-        error: 'status is not valid only use these status list to update trip status',
-        list: validStatusList,
-      });
-  }
+router.put(
+  '/:tripId/status/:status',
+  authCheck,
+  async (req, res) => {
+    if (!req.params.status.includes(TripStatuses)) {
+      return res.status(400)
+        .json({
+          result: false,
+          error: 'status is not valid only use these status list to update trip status',
+          list: TripStatuses,
+        });
+    }
 
-  const updated_trip = await database.query('update trip set status=? where id=?', [req.params.status, req.params.tripId]);
+    const result = updateTripStatus(req.params.status, req.user.id);
 
-  if (updated_trip.affectedRows !== 1) {
-    return res.status(500)
-      .json({
-        result: false,
-        error: 'cant update the trip',
-      });
-  }
-
-  return res.json({
-    result: true,
-  });
-});
+    return res.json({
+      result,
+    });
+  },
+);
 
 // Create new trip
 router.post(
-  '/trips',
-  middlewares.authCheck,
+  '/',
+  authCheck,
   body('dest')
     .exists()
     .isAlpha(),
@@ -111,20 +98,16 @@ router.post(
         .json({ errors: errors.mapped() });
     }
 
-    // eslint-disable-next-line no-restricted-syntax
-    for await (const familyId of req.body.members) {
-      const isFamilyExists = await database.query('select * from families where id=? and owner=?', [familyId, req.user.id]);
-      if (isFamilyExists.length === 0) {
-        return res.status(422)
-          .json({
-            result: false,
-            error: `family ${familyId} do not exists`,
-          });
-      }
+    const isAllFamiliesExists = await isFamiliesExists(req.user.id, req.body.members);
+    if (!isAllFamiliesExists) {
+      return res.status(422).json({
+        result: false,
+        error: 'one or more familyId is not valid',
+      });
     }
 
-    const trips = await database.query('insert into trip (dest, creator) values (?,?)', [req.body.dest, req.user.id]);
-    if (trips.affectedRows !== 1) {
+    const [createTripResult, tripId] = await createTrip(req.user.id, req.body.dest);
+    if (!createTripResult) {
       return res.status(500)
         .json({
           result: false,
@@ -134,20 +117,12 @@ router.post(
 
     // eslint-disable-next-line no-restricted-syntax
     for await (const member of req.body.members) {
-      try {
-        const relation = await database.query('insert into families_in_trip (tripId, familyId, owner) VALUES (?, ?, ?)', [trips.insertId, member, req.user.id]);
-        if (relation.affectedRows !== 1) {
-          return res.status(500)
-            .json({
-              result: false,
-              error: 'Did not inserted family_trip relation',
-            });
-        }
-      } catch (error) {
+      const result = await addFamilyToTrip(req.user.id, tripId, member);
+      if (!result) {
         return res.status(500)
           .json({
             result: false,
-            error,
+            error: 'Did not inserted family_trip relation',
           });
       }
     }

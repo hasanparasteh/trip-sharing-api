@@ -1,14 +1,19 @@
 const express = require('express');
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
 const {
   body,
   validationResult,
 } = require('express-validator');
-const database = require('../database');
 
-require('dotenv')
-  .config();
+const {
+  getUser,
+  isPasswordValid,
+  createToken,
+  hashPassword,
+  createUser,
+  isUserExists,
+} = require('../controllers/auth');
+
+require('dotenv').config();
 
 const router = express.Router();
 
@@ -16,14 +21,12 @@ const router = express.Router();
 router.post(
   '/register',
   body('username')
-    .exists({ checkNull: true })
+    .exists()
     .isAlphanumeric('en-US')
     .isLength({ min: 3 }),
   body('password')
-    .isLength({ min: 8 })
-    .isStrongPassword()
-    .isAlphanumeric()
-    .exists({ checkNull: true }),
+    .exists()
+    .isStrongPassword({ minLength: 8, minUppercase: 1, minLowercase: 1 }),
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -31,8 +34,7 @@ router.post(
         .json({ errors: errors.mapped() });
     }
 
-    const isUsernameAvailable = await database.query('select username from users where username=?', [req.body.username]);
-    if (isUsernameAvailable.length !== 0) {
+    if (await isUserExists(req.body.username)) {
       return res.status(409)
         .json({
           result: false,
@@ -40,15 +42,15 @@ router.post(
         });
     }
 
-    const hashed_password = bcrypt.hashSync(req.body.password, 10);
-    const rows = await database.query('insert into users (username, password, status) values (?, ?, ?)', [req.body.username, hashed_password, 'ACTIVE']);
+    const result = await createUser(req.body.username, hashPassword(req.body.password));
 
-    if (rows.affectedRows !== 1) {
+    if (!result) {
       return res.status(500)
         .json({
           result: false,
         });
     }
+
     return res.status(200)
       .json({
         result: true,
@@ -60,13 +62,12 @@ router.post(
 router.post(
   '/login',
   body('username')
-    .exists({ checkNull: true })
     .isAlphanumeric('en-US')
-    .isLength({ min: 3 }),
+    .isLength({ min: 3 })
+    .exists(),
   body('password')
-    .isLength({ min: 8 })
-    .isAlphanumeric()
-    .exists({ checkNull: true }),
+    .exists()
+    .isStrongPassword({ minLength: 8, minUppercase: 1, minLowercase: 1 }),
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -74,9 +75,9 @@ router.post(
         .json({ errors: errors.mapped() });
     }
 
-    const user = await database.query('select * from users where username=?', [req.body.username]);
+    const user = await getUser(req.body.username);
 
-    if (user.length === 0 || !user[0].status || user[0].status !== 'ACTIVE') {
+    if (!user) {
       return res.status(404)
         .json({
           result: false,
@@ -84,18 +85,17 @@ router.post(
         });
     }
 
-    if (!bcrypt.compareSync(req.body.password, user[0].password)) {
-      return res.status(401)
-        .json({
-          result: false,
-          error: 'USERNAME OR PASSWORD WRONG',
-        });
+    if (!isPasswordValid(req.body.password, user[0].password)) {
+      return res.status(401).json({
+        result: false,
+        error: 'username or password wrong',
+      });
     }
 
-    const token = jwt.sign({
+    const token = createToken({
       username: req.body.username,
       id: user[0].id,
-    }, process.env.JWT_KEY, undefined, undefined);
+    }, process.env.JWT_KEY);
 
     return res.json({
       result: true,

@@ -4,16 +4,22 @@ const {
   validationResult,
 } = require('express-validator');
 const { authCheck } = require('../middlewares');
-const database = require('../database');
+const {
+  getAllPayments,
+  getFamilyPayments,
+  getTripPayments,
+  getPaymentsOfEachFamilyInTrip,
+  createPayment,
+} = require('../controllers/payments');
 
 const router = express.Router();
 
 // Get All Payments
 router.get(
-  '/payments',
+  '/',
   authCheck,
   async (req, res) => {
-    const payments = await database.query('select * from payments where owner=?', [req.user.id]);
+    const payments = await getAllPayments(req.user.id);
 
     return res.json({
       result: 200,
@@ -24,10 +30,10 @@ router.get(
 
 // Get All Payments By FamilyId
 router.get(
-  '/payments/family/:familyId',
+  '/family/:familyId',
   authCheck,
   async (req, res) => {
-    const payments = await database.query('select * from payments where owner=? AND familyId=?', [req.user.id, req.params.familyId]);
+    const payments = await getFamilyPayments(req.user.id, req.params.familyId);
 
     return res.json({
       result: 200,
@@ -38,10 +44,10 @@ router.get(
 
 // Get All Payments By tripId
 router.get(
-  '/payments/trip/:tripId',
+  '/trip/:tripId',
   authCheck,
   async (req, res) => {
-    const payments = await database.query('select * from payments where owner=? AND tripId=?', [req.user.id, req.params.tripId]);
+    const payments = await getTripPayments(req.user.id, req.params.tripId);
 
     return res.json({
       result: 200,
@@ -52,10 +58,14 @@ router.get(
 
 // Get All Payments By tripId and familyId
 router.get(
-  '/payments/trip/:tripId/family/:familyId',
+  '/trip/:tripId/family/:familyId',
   authCheck,
   async (req, res) => {
-    const payments = await database.query('select * from payments where owner=? AND tripId=? AND familyId=?', [req.user.id, req.params.tripId, req.params.familyId]);
+    const payments = await getPaymentsOfEachFamilyInTrip(
+      req.user.id,
+      req.params.tripId,
+      req.params.familyId,
+    );
 
     return res.json({
       result: 200,
@@ -66,7 +76,7 @@ router.get(
 
 // Create a payment
 router.post(
-  '/payments',
+  '/',
   authCheck,
   body('description')
     .optional()
@@ -84,18 +94,17 @@ router.post(
         .json({ errors: errors.mapped() });
     }
 
-    const payments = await database.query('insert into payments (description, cost, familyId, tripId, owner, timestamp) VALUES (?,?,?,?,?,?)', [req.body.description ? req.body.description : null, req.body.cost, req.body.familyId, req.body.tripId, req.user.id, req.body.timestamp ? req.body.timestamp : new Date()]);
-
-    if (payments.affectedRows !== 1) {
-      return res.status(500)
-        .json({
-          result: false,
-          error: 'INTERNAL SERVER ERROR',
-        });
-    }
+    const payment = await createPayment(
+      req.user.id,
+      req.body.tripId,
+      req.body.familyId,
+      req.body.cost,
+      req.body.timestamp,
+      req.body.description,
+    );
 
     return res.json({
-      result: true,
+      result: payment,
     });
   },
 );

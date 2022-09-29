@@ -1,22 +1,52 @@
 const express = require('express');
 const { authCheck } = require('../middlewares');
-const database = require('../database');
+const { shareOfEachFamily, shareOfEachPerson, debtOfEachFamily } = require('../controllers/calculator');
 
 const router = express.Router();
 
 router.get(
-  '/share/:tripId',
+  '/trip/:tripId',
   authCheck,
   async (req, res) => {
-    const costSumQuery = await database.query('select SUM(cost) as sum from payments where tripId=? AND owner=?', [req.params.tripId, req.user.id]);
-    const crowdSumQuery = await database.query('select SUM(crowd) as sum from families_in_trip left join families family on family.id = families_in_trip.familyId where family.owner=? AND tripId=?', [req.user.id, req.params.tripId]);
-
-    const costSum = costSumQuery[0].sum;
-    const crowdSum = crowdSumQuery[0].sum;
+    const share = await shareOfEachPerson(req.user.id, req.params.tripId);
 
     return res.json({
       result: true,
-      share: (costSum / crowdSum),
+      share,
+    });
+  },
+);
+
+router.get(
+  '/trip/:tripId/family/:familyId',
+  authCheck,
+  async (req, res) => {
+    const shareOfFamily = await shareOfEachFamily(
+      req.user.id,
+      req.params.tripId,
+      req.params.familyId,
+    );
+
+    return res.json({
+      result: true,
+      share: shareOfFamily,
+    });
+  },
+);
+
+router.get(
+  '/debt/trip/:tripId/family/:familyId',
+  authCheck,
+  async (req, res) => {
+    const debt = await debtOfEachFamily(
+      req.user.id,
+      req.params.tripId,
+      req.params.familyId,
+    );
+
+    return res.json({
+      result: true,
+      debt,
     });
   },
 );
