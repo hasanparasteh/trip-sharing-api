@@ -1,27 +1,23 @@
 const database = require('../database');
 
 async function getAllPayments(userId) {
-  const payments = await database.query('select * from payments where owner=?', [userId]);
-
-  return payments;
+  // eslint-disable-next-line no-return-await
+  return await database.query('select * from payments where owner=?', [userId]);
 }
 
 async function getFamilyPayments(userId, familyId) {
-  const payments = await database.query('select * from payments where owner=? AND familyId=?', [userId, familyId]);
-
-  return payments;
+  // eslint-disable-next-line no-return-await
+  return await database.query('select * from payments where owner=? AND familyId=?', [userId, familyId]);
 }
 
 async function getTripPayments(userId, tripId) {
-  const payments = await database.query('select * from payments where owner=? AND tripId=?', [userId, tripId]);
-
-  return payments;
+  // eslint-disable-next-line no-return-await
+  return await database.query('select * from payments where owner=? AND tripId=?', [userId, tripId]);
 }
 
 async function getPaymentsOfEachFamilyInTrip(userId, tripId, familyId) {
-  const payments = await database.query('select * from payments where owner=? AND tripId=? AND familyId=?', [userId, tripId, familyId]);
-
-  return payments;
+  // eslint-disable-next-line no-return-await
+  return await database.query('select * from payments where owner=? AND tripId=? AND familyId=?', [userId, tripId, familyId]);
 }
 
 async function createPayment(userId, tripId, familyId, cost, timestamp, description) {

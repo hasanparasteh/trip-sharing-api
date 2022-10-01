@@ -7,15 +7,13 @@ async function createFamily(userId, name, crowd) {
 }
 
 async function getFamilies(userId) {
-  const families = await database.query('select id, name, owner, crowd from families where owner=?', [userId]);
-
-  return families;
+  // eslint-disable-next-line no-return-await
+  return await database.query('select id, name, owner, crowd from families where owner=?', [userId]);
 }
 
 async function getFamily(userId, familyId) {
-  const family = database.query('select id, name, owner, crowd from families where owner=? AND id=?', [userId, familyId]);
-
-  return family;
+  // eslint-disable-next-line no-return-await
+  return await database.query('select id, name, owner, crowd from families where owner=? AND id=?', [userId, familyId]);
 }
 
 async function editFamilyCrowd(userId, familyId, crowd) {

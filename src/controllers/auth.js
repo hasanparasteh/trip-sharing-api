@@ -5,11 +5,7 @@ const database = require('../database');
 async function getUser(username) {
   const user = await database.query('select * from users where username=?', [username]);
 
-  if (user.length === 0 || !user[0].status || user[0].status !== 'ACTIVE') {
-    return false;
-  }
-
-  return true;
+  return !(user.length === 0 || !user[0].status || user[0].status !== 'ACTIVE');
 }
 
 async function createUser(username, password) {
@@ -20,19 +16,12 @@ async function createUser(username, password) {
 
 async function isUserExists(username) {
   const result = await database.query('select username from users where username=?', [username]);
-  if (result.length !== 0) {
-    return true;
-  }
-
-  return false;
+  return result.length !== 0;
 }
 
 async function isPasswordValid(password, hash) {
-  if (!(await bcrypt.compare(password, hash))) {
-    return false;
-  }
-
-  return true;
+  // eslint-disable-next-line no-return-await
+  return await bcrypt.compare(password, hash);
 }
 
 async function createToken(data, key) {
@@ -40,8 +29,8 @@ async function createToken(data, key) {
 }
 
 async function hashPassword(password) {
-  const hash = await bcrypt.hash(password, 10);
-  return hash;
+  // eslint-disable-next-line no-return-await
+  return await bcrypt.hash(password, 10);
 }
 
 module.exports = {
