@@ -5,7 +5,7 @@ const database = require('../database');
 async function getUser(username) {
   const user = await database.query('select * from users where username=?', [username]);
 
-  return !(user.length === 0 || !user[0].status || user[0].status !== 'ACTIVE');
+  return user;
 }
 
 async function createUser(username, password) {

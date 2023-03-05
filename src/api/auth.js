@@ -42,7 +42,7 @@ router.post(
         });
     }
 
-    const result = await createUser(req.body.username, hashPassword(req.body.password));
+    const result = await createUser(req.body.username, await hashPassword(req.body.password));
 
     if (!result) {
       return res.status(500)
@@ -85,6 +85,7 @@ router.post(
         });
     }
 
+
     if (!isPasswordValid(req.body.password, user[0].password)) {
       return res.status(401).json({
         result: false,
@@ -92,7 +93,7 @@ router.post(
       });
     }
 
-    const token = createToken({
+    const token = await createToken({
       username: req.body.username,
       id: user[0].id,
     }, process.env.JWT_KEY);
